@@ -32,7 +32,7 @@ int BarR[21] = {1};
 int CherryL[21] = {5, 14};
 int CherryC[21] = {2, 6, 10, 14, 18};
 
-int NCCherryL[21] = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20};
+int NCCherryL[21] = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 16, 18, 19, 20};
 
 int PayLineDiffer[5][3] = {{-1, -1, -1}, {0, 0, 0}, {1, 1, 1}, {-1, 0, 1}, {1, 0, -1}};
 int Conf_Table[7][2] = {{4, 1}, {3, 2}, {4, 2}, {5, 2}, {6, 2}, {8, 1}, {10, 2}};
@@ -108,7 +108,7 @@ void loop()
           //設定5   83%   20%   113%
           //設定6   88%   10%   115%
           //設定7   90%   30%   145%
-          delay(100);
+          delay(1000);
           if(mode==0){
             int random_flg = shift128_random();
             if(random_flg==0){
@@ -229,22 +229,26 @@ void loop()
       
       for(int i=0; i<numReels; i++){
         if(!steppers[i].run() & status[i]){
+          status[i] = false;
+          status2[i] = true;
           if(i==2){
             if(is_first){
               is_first = false;
             }
             else{
               Get_Position();
-            }    
+            }
+            
           }
-          status[i] = false;
-          status2[i] = true;
         }
         else{
           if(!steppers[i].run()){
             if(status2[i]){
                 if(timer[i]<0){
                   status2[i] = false;
+                  if(i==2){
+                    temp = false;
+                  }
                 }
                 timer[i] = timer[i] - 1;
             }
@@ -268,8 +272,7 @@ void loop()
         }
       }
       if(!steppers[0].run() & !steppers[1].run() & !steppers[2].run()){
-          temp = false;
-        }   
+      }   
 }
 
 void CalibrateReel(){
@@ -323,7 +326,7 @@ int Set_Position(int flg, int PayLine, int index){
     if(flg==0){
       switch(index){
         case 0:
-          return NCCherryL[random(0, 15)];   
+          return NCCherryL[random(0, 14)];   
         case 1:
           return random(0, 21);
         case 2:
@@ -371,7 +374,7 @@ int Set_Position(int flg, int PayLine, int index){
     if(flg==2){
       switch(index){
         case 0:
-          return NCCherryL[random(0, 15)];
+          return NCCherryL[random(0, 14)];
         case 1:
           return random(0, 21);
         case 2:
@@ -625,6 +628,7 @@ uint32_t xorshift128(){
 int shift128_random(){
   String rnd = String(xorshift128());
   return rnd.substring(rnd.length() - 1).toInt();
+  
 }
 
 bool chance(int top, int bottom){
