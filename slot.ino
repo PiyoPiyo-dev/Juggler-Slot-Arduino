@@ -1,8 +1,7 @@
 #include <AccelStepper.h>
-#include <EEPROM.h>
 #define NUM_STEPS 200
 
-int Config;
+int Config = 7;//設定
 
 int reel[21]={0, 8, 10, 10, 10, 10, 8, 10, 10, 10, 8, 10, 10, 10, 10, 10, 8, 10, 8, 10, 10};
 
@@ -89,11 +88,6 @@ void setup()
   randomSeed(sq(r));
   r = analogRead(A7)+analogRead(A6) + analogRead(A7);
   xorshift128_seed(sq(r) + analogRead(A7) + analogRead(A6) + analogRead(A7));
-  Config = EEPROM.read(0);
-  if(Config>7){
-    Config = 1;
-    EEPROM.write(0, Config);
-  }
   CalibrateReel();
 }
 
@@ -146,7 +140,6 @@ void loop()
             digitalWrite(13, HIGH);
           }
           else{
-            EEPROM.write(0, Config);
             digitalWrite(13, LOW);
             delay(1000);
             flash(10);
@@ -180,7 +173,6 @@ void loop()
         while(!digitalRead(A0)){
           delay(5);
         }
-        //Serial.println(millis() - t);
         if(millis() - t >=1000){
           cmode = 1;
           digitalWrite(13, HIGH);
@@ -356,19 +348,19 @@ void loop()
           }
           for(int i=0; i<numReels; i++) {
             if(auto_play){
-              targetOfset[i] = NUM_STEPS*2 +  (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
+              targetOfset[i] = NUM_STEPS*i + NUM_STEPS*2 +  (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
             }
             else{
               targetOfset[i] = NUM_STEPS*i + NUM_STEPS*3 + (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
             }
           }
-          if(targetOfset[1] - targetOfset[0] < 50 & !auto_play){
-            targetOfset[1] += 200;
-            targetOfset[2] += 200;
-          }
-          if(targetOfset[2] - targetOfset[1] < 50 & !auto_play){
-            targetOfset[2] += 200;
-          }
+          if(targetOfset[1] - targetOfset[0] < 50){
+              targetOfset[1] += 200;
+              targetOfset[2] += 200;
+            }
+            if(targetOfset[2] - targetOfset[1] < 50){
+              targetOfset[2] += 200;
+            }
           for(int i=0; i<numReels; i++) {
             steppers[i].moveTo(targetOfset[i]);
             Position[i] = reels[targetValue[i]];
@@ -382,7 +374,7 @@ void loop()
         if(!steppers[i].run() & status[i]){
           status[i] = false;
           status2[i] = true;
-          if(int(status[0]) + int(status[1]) + int(status[2]) == 0){
+          if(i == 2){
             if(is_first){
               is_first = false;
             }
@@ -398,7 +390,7 @@ void loop()
                 if(timer[i]<0){
                   status2[i] = false;
                   
-                  if(int(steppers[0].run()) + int(steppers[1].run()) + int(steppers[2].run()) + int(status[0]) + int(status[1]) + int(status[2]) + int(status2[0]) + int(status2[1]) + int(status2[2]) == 0){
+                  if(i == 2){
                     temp = false;
                   }
                 }
@@ -780,6 +772,7 @@ uint32_t xorshift128(){
 int shift128_random(){
   String rnd = String(xorshift128());
   return rnd.substring(rnd.length() - 1).toInt();
+  
 }
 
 bool chance(int top, int bottom){
@@ -792,7 +785,7 @@ void Get_Position(){
   //3 当選状況
   //4 ペイライン
   //5-13 停止状況
-  Serial.println(String(mode) + String(FreeSpin) + String(target) + String(payline) + "," + String(targetValue[0]) + "," + String(targetValue[1]) + "," + String(targetValue[2]));
+  Serial.print(String(mode) + String(FreeSpin) + String(target) + String(payline) + "," + String(targetValue[0]) + "," + String(targetValue[1]) + "," + String(targetValue[2]));
 }
 
 void Show_Config(int conf){
@@ -808,7 +801,6 @@ void Show_Config(int conf){
   delay(500);
   flash(10);
 }
-
 void flash(int n){
   for(int i=0; i<n; i=i+1) {
 	   digitalWrite(13, HIGH);
