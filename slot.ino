@@ -1,7 +1,8 @@
 #include <AccelStepper.h>
+#include <EEPROM.h>
 #define NUM_STEPS 200
 
-int Config = 7;//設定
+int Config;
 
 int reel[21]={0, 8, 10, 10, 10, 10, 8, 10, 10, 10, 8, 10, 10, 10, 10, 10, 8, 10, 8, 10, 10};
 
@@ -37,7 +38,7 @@ int NCCherryL[21] = {0, 1, 2, 3, 7, 8, 9, 10, 11, 12, 16, 18, 19, 20};
 int PayLineDiffer[5][3] = {{-1, -1, -1}, {0, 0, 0}, {1, 1, 1}, {-1, 0, 1}, {1, 0, -1}};
 int Conf_Table[7][2] = {{4, 1}, {3, 2}, {4, 2}, {5, 2}, {6, 2}, {8, 1}, {10, 2}};
 AccelStepper Rstepper(AccelStepper::FULL4WIRE, 2, 3, 4, 5);
-AccelStepper Lstepper(AccelStepper::FULL4WIRE, 10, 11, 12, A0);
+AccelStepper Lstepper(AccelStepper::FULL4WIRE, 10, 11, 12, A5);
 AccelStepper Cstepper(AccelStepper::FULL4WIRE, 9, 8, 6, 7);
 AccelStepper steppers[3] = {Lstepper, Cstepper, Rstepper};
 int sensors[3] = {15, 16, 17};
@@ -46,6 +47,7 @@ int target;
 int mode;
 int FreeSpin;
 int phase;
+int mod;
 int reels[22];
 bool status[3] = {false, false, false};
 bool status2[3] = {false, false, false};
@@ -54,10 +56,12 @@ int motor_pre[3] = {0, 0, 0};
 int numReels = 3;
 int targetValue[3] = {0, 0, 0};
 int targetOfset[3] = {0, 0, 0};
+int cmode = 0;
 bool is_Calibrate = false;
 bool temp = false;
 bool is_wait = true;
 bool is_first = true;
+bool auto_play = false;
 int Position[3] = {0, 0, 0};
 int PositionDiff[3] = {0, 0, 0};
 int payline;
@@ -70,24 +74,125 @@ static uint32_t w = 88675123;
 void setup()
 {  
   Serial.begin(9600);
+  Serial.print("9999,99,99,99");
   for(int i=0; i<21; i++){
   reels[i] = sum(reel, 0, i);
   }
   for(int i=0; i<numReels; i++){
     pinMode(sensors[i], INPUT);
     pinMode(A4, INPUT_PULLUP);
+    pinMode(A0, INPUT_PULLUP);
     steppers[i].setMaxSpeed(110);
     steppers[i].setAcceleration(1100);
   }
+  int r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+  randomSeed(sq(r));
+  r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+  xorshift128_seed(sq(r) + analogRead(A7) + analogRead(A6) + analogRead(A7));
+  Config = EEPROM.read(0);
+  if(Config>7){
+    Config = 1;
+    EEPROM.write(0, Config);
+  }
   CalibrateReel();
-  int t = analogRead(A7)+analogRead(A6) + analogRead(A5);
-  randomSeed(sq(t));
-  xorshift128_seed(sq(t) + analogRead(A7) + analogRead(A6) + analogRead(A5));
 }
 
 void loop()
 {
-    if( !digitalRead(A4) & !temp){
+    if(!digitalRead(A0) & !temp) {
+      if(cmode==2){
+        unsigned long int t = millis();
+        while(!digitalRead(A0)){
+          delay(5);
+        }
+        if(millis() - t >=1000){
+            digitalWrite(13, LOW);
+            delay(1000);
+            flash(10);
+            int r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+            randomSeed(sq(r));
+            r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+            xorshift128_seed(sq(r) + analogRead(A7) + analogRead(A6) + analogRead(A7));
+            mode = 0;
+            target = 0;
+            FreeSpin = 0;
+            cmode = 0;
+            Config = 7;
+        }
+        else{
+          //mode=1 通常モード
+          //mode=2 次ゲームBB確定
+          //mode=3 次ゲームRB確定
+          //mode=4 次ゲームSB確定
+          mod += 1;
+          if(mod==5){
+            mod = 1;
+          }
+          Show_Config(mod);
+          digitalWrite(13, HIGH);
+        }
+      }
+      else
+      if(cmode==1){
+        unsigned long int t = millis();
+        while(!digitalRead(A0)){
+          delay(5);
+        }
+        if(millis() - t >=1000){
+          if(Config==8){
+            cmode = 2;
+            mod = 1;
+            flash(5);
+            digitalWrite(13, HIGH);
+          }
+          else{
+            EEPROM.write(0, Config);
+            digitalWrite(13, LOW);
+            delay(1000);
+            flash(10);
+            int r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+            randomSeed(sq(r));
+            r = analogRead(A7)+analogRead(A6) + analogRead(A7);
+            xorshift128_seed(sq(r) + analogRead(A7) + analogRead(A6) + analogRead(A7));
+            mode = 0;
+            target = 0;
+            FreeSpin = 0;
+            cmode = 0;
+          }
+        }
+        else{
+          Config += 1;
+          if(Config == 8){
+            flash(20);
+            digitalWrite(13, HIGH);
+          }
+          else{
+            if(Config == 9){
+              Config = 1;
+            }
+            Show_Config(Config);
+            digitalWrite(13, HIGH);
+          }       
+        }
+      }
+      else{
+        unsigned long int t = millis();
+        while(!digitalRead(A0)){
+          delay(5);
+        }
+        //Serial.println(millis() - t);
+        if(millis() - t >=1000){
+          cmode = 1;
+          digitalWrite(13, HIGH);
+        }
+        else{
+          Show_Config(Config);
+        }
+      }
+      
+    }
+
+    if( (!digitalRead(A4) & !temp & cmode==0) || (auto_play & !temp & cmode==0)){
           payline = random(0, 5);
           //mode = 0 通常時
           //mode = 1 BB
@@ -108,48 +213,89 @@ void loop()
           //設定5   83%   20%   113%
           //設定6   88%   10%   115%
           //設定7   90%   30%   145%
-          delay(1000);
-          if(mode==0){
-            int random_flg = shift128_random();
-            if(random_flg==0){
-              random_flg = shift128_random();
-              if(random_flg <= 4){
-                //BB当選
-                target = 7;
-                FreeSpin = 4;
-                mode = 1;
-              }
-              else
-              if(random_flg != 5){
-                //RB当選
-                target = 6;
-                FreeSpin = 2;
-                mode = 2;
-              }
-              else{
-                //SB当選
-                target = 8;
-                FreeSpin = 4;
-                mode = 3;
-              }
+          if(!auto_play){
+            unsigned long int t = millis();
+            while(!digitalRead(A4)){
+              delay(5);
             }
-            else
-            if(random_flg <=Conf_Table[Config-1][1]){
-              //REP当選
-              target = 3;
-              FreeSpin = 0;
+            if(millis() - t >=1000){
+              auto_play = true;
+            }
+          }
+          else{
+            if(!digitalRead(A4)){
+              auto_play = false;
+              while(!digitalRead(A4)){
+                delay(5);
+              }
+              return;
             }
             else{
-                target = 0;
+              delay(2500);
+            }
+          }
+          if(mode==0){
+            int random_flg = shift128_random();
+            if(mod==1){
+              if(random_flg==0){
+                random_flg = shift128_random();
+                if(random_flg <= 4){
+                  //BB当選
+                  target = 7;
+                  FreeSpin = 4;
+                  mode = 1;
+                }
+                else
+                if(random_flg != 5){
+                  //RB当選
+                  target = 6;
+                  FreeSpin = 2;
+                  mode = 2;
+                }
+                else{
+                  //SB当選
+                  target = 8;
+                  FreeSpin = 4;
+                  mode = 3;
+                }
+              }
+              else
+              if(random_flg <=Conf_Table[Config-1][1]){
+                //REP当選
+                target = 3;
                 FreeSpin = 0;
               }
+              else{
+                  target = 0;
+                  FreeSpin = 0;
+                }
+            }
+            else{
+              switch(mod){
+                case 2:
+                  target = 7;
+                  FreeSpin = 4;
+                  mode = 1;
+                  break;
+                case 3:
+                  target = 6;
+                  FreeSpin = 2;
+                  mode = 2;
+                  break;
+                case 4:
+                  target = 8;
+                  FreeSpin = 4;
+                  mode = 3;
+                  break;
+              }
+              mod = 1;
+            }
           }
           else
           if(mode == 1){
             FreeSpin -= 1;
             if(FreeSpin == 0){
               mode=0;
-
             }
             target = 1;
           }
@@ -209,13 +355,18 @@ void loop()
               }
           }
           for(int i=0; i<numReels; i++) {
-            targetOfset[i] = NUM_STEPS*i + NUM_STEPS*3 + (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
+            if(auto_play){
+              targetOfset[i] = NUM_STEPS*2 +  (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
+            }
+            else{
+              targetOfset[i] = NUM_STEPS*i + NUM_STEPS*3 + (motor_pre[i])- reels[targetValue[i]] + PositionDiff[i];
+            }
           }
-          if(targetOfset[1] - targetOfset[0] < 50){
+          if(targetOfset[1] - targetOfset[0] < 50 & !auto_play){
             targetOfset[1] += 200;
             targetOfset[2] += 200;
           }
-          if(targetOfset[2] - targetOfset[1] < 50){
+          if(targetOfset[2] - targetOfset[1] < 50 & !auto_play){
             targetOfset[2] += 200;
           }
           for(int i=0; i<numReels; i++) {
@@ -226,12 +377,12 @@ void loop()
           }
           
       }
-      
+
       for(int i=0; i<numReels; i++){
         if(!steppers[i].run() & status[i]){
           status[i] = false;
           status2[i] = true;
-          if(i==2){
+          if(int(status[0]) + int(status[1]) + int(status[2]) == 0){
             if(is_first){
               is_first = false;
             }
@@ -246,7 +397,8 @@ void loop()
             if(status2[i]){
                 if(timer[i]<0){
                   status2[i] = false;
-                  if(i==2){
+                  
+                  if(int(steppers[0].run()) + int(steppers[1].run()) + int(steppers[2].run()) + int(status[0]) + int(status[1]) + int(status[2]) + int(status2[0]) + int(status2[1]) + int(status2[2]) == 0){
                     temp = false;
                   }
                 }
@@ -483,7 +635,7 @@ int diffsum(int base, int _payline, int _index){
 
 int get_index(int id){
   int E0[21] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
-  int E1[21] = {2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19};
+  int E1[21] = {2, 5, 6, 9, 10, 13, 14, 17, 18};
   int E2[21] = {4, 8, 12, 16, 20};
   int E3[21] = {2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 19};
   int E4[21] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
@@ -494,7 +646,7 @@ int get_index(int id){
     return E0[random(0, 19)];
   }
   if(id==1){
-    return E1[random(0, 14)];
+    return E1[random(0, 9)];
   }
   if(id==2){
     return E2[random(0, 5)];
@@ -628,7 +780,6 @@ uint32_t xorshift128(){
 int shift128_random(){
   String rnd = String(xorshift128());
   return rnd.substring(rnd.length() - 1).toInt();
-  
 }
 
 bool chance(int top, int bottom){
@@ -642,4 +793,27 @@ void Get_Position(){
   //4 ペイライン
   //5-13 停止状況
   Serial.println(String(mode) + String(FreeSpin) + String(target) + String(payline) + "," + String(targetValue[0]) + "," + String(targetValue[1]) + "," + String(targetValue[2]));
+}
+
+void Show_Config(int conf){
+  flash(10);
+  digitalWrite(13, LOW);
+  delay(1000);
+  for(int i=0; i<conf; i=i+1) {
+	   digitalWrite(13, HIGH);
+	   delay(300);
+	   digitalWrite(13, LOW);
+	   delay(300);
+	}
+  delay(500);
+  flash(10);
+}
+
+void flash(int n){
+  for(int i=0; i<n; i=i+1) {
+	   digitalWrite(13, HIGH);
+	   delay(50);
+	   digitalWrite(13, LOW);
+	   delay(50);
+	}
 }
