@@ -22,7 +22,6 @@ while True:
             in_credit = 0
             rep_flg = False
             bonus_flg = False
-
             print(termcolor.colored("SB  " + str(sb), 'blue') +
                   "    " + termcolor.colored("GAME", 'yellow'))
             print(termcolor.colored("BB  " + str(bb), 'red') +
@@ -43,6 +42,7 @@ while True:
                 "|      |      |      |")
             print("\033[14A", end="")
         else:
+
             def nsum(base, offset):
                 if base+offset == 21:
                     return 0
@@ -57,7 +57,6 @@ while True:
                      2, 6, 3, 4, 2, 1, 3, 4, 2, 5]
             Rreel = [0, 1, 6, 2, 3, 5, 6, 2, 3, 5, 6,
                      2, 3, 5, 6, 2, 3, 5, 6, 2, 3]
-
             position = [[Lreel[nsum(int(data.split(",")[1]), -1)], Creel[nsum(int(data.split(",")[2]), -1)], Rreel[nsum(int(data.split(",")[3]), -1)]],
                         [Lreel[nsum(int(data.split(",")[1]), 0)], Creel[nsum(
                             int(data.split(",")[2]), 0)], Rreel[nsum(int(data.split(",")[3]), 0)]],
